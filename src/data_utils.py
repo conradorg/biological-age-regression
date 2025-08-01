@@ -36,9 +36,10 @@ feature2description = {
     "BMXWT": "Weight (kg)",
     "PAD680": "(Minutes) The following question is about sitting at school, at home, getting to and from places, or with friends including time spent sitting at a desk, traveling in a car or bus, reading, playing cards, watching television, or using a computer. Do not include time spent sleeping. How much time {do you/does SP} usually spend sitting on a typical day?",
     "SMQ020": "These next questions are about cigarette smoking and other tobacco use. {Have you/Has SP} smoked at least 100 cigarettes in {your/his/her} entire life?",
-    "ALQ121": "ALQ121 - Past 12 mo how often have alcohol drink",
+    # "ALQ121": "ALQ121 - Past 12 mo how often have alcohol drink",
+    "ALQ130": "ALQ130 - Avg # alcohol drinks/day - past 12 mos",
     "SLD012": "Number of hours usually sleep on weekdays or workdays.",
-    "SLD013": "Number of hours usually sleep on weekends or non-workdays.",
+    # "SLD013": "Number of hours usually sleep on weekends or non-workdays.",
 }
 feature2fileprefix = {
     "RIDAGEYR": "DEMO",
@@ -48,9 +49,10 @@ feature2fileprefix = {
     "BMXWT": "BMX",
     "PAD680": "PAQ",
     "SMQ020": "SMQ",
-    "ALQ121": "ALQ",
+    # "ALQ121": "ALQ",
+    "ALQ130": "ALQ",
     "SLD012": "SLQ",
-    "SLD013": "SLQ",
+    # "SLD013": "SLQ",
 }
 
 # Variable search: https://wwwn.cdc.gov/nchs/nhanes/search/default.aspx
@@ -86,9 +88,10 @@ feature_names = [
     "BMXWT",
     "PAD680",
     "SMQ020",
-    "ALQ121",
+    # "ALQ121",
+    "ALQ130",
     "SLD012",
-    "SLD013",
+    # "SLD013",
 ]
 
 
@@ -141,16 +144,23 @@ def download_all_needed_files(year, data_dir):
         print(file_url, os.path.join(data_path, get_nhanes_filename(year, file_prefix)))
 
 
-def load_data(year, data_dir):
+def load_data(year, data_dir, batch: int | None = None):
     # try to merge based on SEQN/patient
     unique_file_prefixes = np.unique(list((biomarker2fileprefix | feature2fileprefix).values()))
     files_to_read = [ os.path.join(data_dir, get_nhanes_filename(year, file_prefix)) for file_prefix in unique_file_prefixes ]
-    print(files_to_read)
+    # print(files_to_read)
     raw_dfs = [ pd.read_sas(f) for f in files_to_read ]
     result_df = raw_dfs[0]
     for raw_df in raw_dfs[1:]:
         result_df = result_df.merge(raw_df, on="SEQN")
     result_df = result_df.filter((biomarker2fileprefix|feature2fileprefix).keys()).copy()
+    if batch is not None:
+        if batch not in list(range(10)):
+            raise ValueError("batch can only be None or an int in [0-9]")
+        num_entries = len(result_df) // 10
+        start  = batch * num_entries
+        end = (batch+1) * num_entries - 1
+        result_df = result_df.iloc[start:end, :]  # split data by 10
     return result_df
 
 
@@ -216,7 +226,8 @@ def calculate_phenoage_numpy(
     )
 
     mortality_score = 1 - np.exp(-np.exp(xb) * ((np.exp(120 * 0.0076927) - 1) / 0.0076927))
-    phenoage = 141.50225 + np.log(-0.00553 * np.log(1 - mortality_score)) / 0.090165
+    with np.errstate(divide="ignore"):
+        phenoage = 141.50225 + np.log(-0.00553 * np.log(1 - mortality_score)) / 0.090165
 
     return phenoage
 
