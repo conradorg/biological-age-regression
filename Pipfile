@@ -8,10 +8,16 @@ scikit-learn = "*"
 pandas = "*"
 numpy = "*"
 requests = "*"
+mlflow = "*"
+setuptools = "*"
+optuna = "*"
 
 [dev-packages]
 ipykernel = "*"
 matplotlib = "*"
+ipywidgets = "*"
+jupyter = "*"
+apache-airflow = "==3.0.3"
 
 [requires]
 python_version = "3.12"
