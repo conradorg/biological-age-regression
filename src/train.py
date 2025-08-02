@@ -12,12 +12,12 @@ import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.svm import LinearSVR, SVR
-from sklearn.metrics import mean_absolute_error
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 import optuna
 import mlflow
 from mlflow import MlflowClient
 
-from data_utils import calculate_phenoage_df, download_all_needed_files, get_feature_names, get_target_name, load_data
+from data_utils import calculate_phenoage_df, download_all_needed_files, get_feature_names, get_target_name, load_data, load_preprocessed_data_parquet, preprocess_raw_data_nhanes
 
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
 
@@ -27,65 +27,24 @@ mlflow.set_experiment("SVR-hyperparameter-optimization")
 
 
 
-def prepare_raw_features(df: pd.DataFrame):
-    # TODO new name: preprocess_raw_data_nhanes
-    """
-    prepare a dataframe with the defined features
-    # one-hot categorical features will be transformed to strings for the scikit-learn.DictVectorizer
-
-    Args:
-        df (pd.DataFrame): dataframe with the raw features from NHANES data
-    """
-    df = df.copy() 
-    df = df.replace({np.inf: np.nan, -np.inf: np.nan})
-    # df = df.dropna(axis=0)
-
-    # ===== categorical =====
-    categorical_one_hot = ["RIAGENDR", "SMQ020"]
-
-    df["RIAGENDR"] = df["RIAGENDR"].astype("Int32")
-    df["RIAGENDR"] = df["RIAGENDR"].map({1: "male", 2: "female"})
-
-    df["SMQ020"] = df["SMQ020"].astype("Int32")
-    df["SMQ020"] = df["SMQ020"].map(lambda x: {1: "yes", 2: "no"}.get(x, np.nan))  # unknown values become NaN
-
-    # df[categorical_one_hot] = df[categorical_one_hot].astype(str)  # out-commented as this makes nan value to string
-
-    # ===== continuous =====
-    # Minutes sedentary activity | only use valid range of 0 to 1320
-    # df = df[(df.PAD680 >= 0) & (df.PAD680 <= 1320)]
-    df["PAD680"] = df["PAD680"].map(lambda x: x if x >= 0 and x <= 1320 else np.nan)
-
-    # # frequency of alcohol consumption during last 12 months: transform categorical to continuous variable 
-    # df["ALQ121"] = df["ALQ121"].astype("Int32")    
-    # alcohol_consumption_categorical_to_continuous = {
-    #     0: 0.,
-    #     1: 365.,  # every day
-    #     2: 52.*5,  # almost every day: assume 5 days a week
-    #     3: 52.*3.5,  # 3-4 times a week (52 weeks)
-    #     4: 52.*2,  # 2 times a week
-    #     5: 52.*1,  # once a week
-    #     6: 12.*2.5,  # 2-3 times a month
-    #     7: 12.*1,  # once a month
-    #     8: 9.,  # 9 times a year
-    #     9: 4.5,
-    #     10: 1.5,
-    #     77: np.nan,  # refused
-    #     99: np.nan,  # missing
-    # }
-    # df = df[((df["ALQ121"] >= 0) & (df["ALQ121"] <= 10)) | (df["ALQ121"] == 77) | (df["ALQ121"] == 99)]
-    # df["ALQ121"] = df["ALQ121"].replace(alcohol_consumption_categorical_to_continuous)
-
-    df["ALQ130"] = df["ALQ130"].round().astype("Int32")
-    df.loc[~df["ALQ130"].between(0, 15, inclusive="both")] = np.nan  # values 777 and 999 are "missing" and "refused"
-
-    df["PAD680"] = df["PAD680"].round()
-
-    df = df.copy().reset_index(drop=True)
-    return df
+def create_X(df_preprocessed: pd.DataFrame, feature_transform: ColumnTransformer|None=None):
+    df = df_preprocessed[get_feature_names()].copy()
+    if feature_transform is None:
+        feature_transform = get_feature_transform(df)
+    return feature_transform.transform(df), feature_transform
 
 
-def get_feature_transformer(df_features: pd.DataFrame):
+def create_y(df_preprocessed: pd.DataFrame, target_transform: StandardScaler|None=None):
+    df = df_preprocessed[[get_target_name()]].copy()
+    if target_transform is None:
+        target_transform = get_target_transform(df)
+    return target_transform.transform(df).ravel(), target_transform
+    
+    
+
+
+
+def get_feature_transform(df_features: pd.DataFrame):
     categorical_cols = ["RIAGENDR", "SMQ020"]
     continuous_cols = [
         "RIDAGEYR",
@@ -107,13 +66,15 @@ def get_feature_transformer(df_features: pd.DataFrame):
     return ct
 
 
-def get_target_transformer(df: pd.DataFrame):
+def get_target_transform(df: pd.DataFrame):
     scaler = StandardScaler()
-    scaler.fit(df[["phenoage"]])
+    scaler.fit(df[[get_target_name()]])
     return scaler
 
 
-def train_model(X_train, y_train, X_val, y_val, feature_transformer, target_transformer, params: dict):
+def train_model(X_train, y_train, X_val, y_val, feature_transform, target_transform, params: dict):
+    inverse_ttf = lambda y: target_transform.inverse_transform(y.reshape((-1,1)))
+
     # mlflow.sklearn.autolog()
     with mlflow.start_run():
 
@@ -121,13 +82,13 @@ def train_model(X_train, y_train, X_val, y_val, feature_transformer, target_tran
         model.fit(X_train, y_train)
         y_pred = model.predict(X_val)
 
-        train_error = mean_absolute_error(target_transformer.inverse_transform(y_val.reshape((-1,1))), target_transformer.inverse_transform(y_pred.reshape((-1,1))))
+        train_error = mean_absolute_error(inverse_ttf(y_val), inverse_ttf(y_pred))
     return model
 
 
-def hyperparam_tuning(X_train, y_train, X_val, y_val, feature_transformer, target_transformer):
+def hyperparam_tuning(X_train, y_train, X_val, y_val, feature_transformer, target_transform):
+    inverse_ttf = lambda y: target_transform.inverse_transform(y.reshape((-1,1)))
 
-    # TODO use validation error
     def objective(trial: optuna.Trial):
         with mlflow.start_run():
             
@@ -140,12 +101,21 @@ def hyperparam_tuning(X_train, y_train, X_val, y_val, feature_transformer, targe
 
             model = LinearSVR(epsilon=epsilon, tol=tol, C=C, loss=loss, max_iter=max_iter, random_state=random_state) 
             model.fit(X_train, y_train)
+
+            y_pred = model.predict(X_train)
+            train_mean_absolute_error = mean_absolute_error(inverse_ttf(y_train), inverse_ttf(y_pred))
+            train_mean_squared_error = mean_squared_error(inverse_ttf(y_train), inverse_ttf(y_pred))
+
             y_pred = model.predict(X_val)
-            val_mean_absolute_error = mean_absolute_error(target_transformer.inverse_transform(y_val.reshape((-1,1))), target_transformer.inverse_transform(y_pred.reshape((-1,1))))
+            val_mean_absolute_error = mean_absolute_error(inverse_ttf(y_val), inverse_ttf(y_pred))
+            val_mean_squared_error = mean_squared_error(inverse_ttf(y_val), inverse_ttf(y_pred))
 
             mlflow.set_tag("model", "LinearSVR")
             mlflow.log_params(trial.params)
-            mlflow.log_metrics({"val_mean_absolute_error": val_mean_absolute_error})
+            mlflow.log_metrics({"train_mean_absolute_error": train_mean_absolute_error, 
+                                "train_mean_squared_error": train_mean_squared_error,
+                                "val_mean_absolute_error": val_mean_absolute_error, 
+                                "val_mean_squared_error": val_mean_squared_error,})
 
             return val_mean_absolute_error 
 
@@ -159,50 +129,46 @@ def hyperparam_tuning(X_train, y_train, X_val, y_val, feature_transformer, targe
 def validate_model(X, y):
     pass
 
-def run(year, year_val, batch_val):
+
+def run_hyperparameter_tuning(year, year_val, batch_val):
 
     # load data
     script_path = Path(os.path.realpath(__file__))
     data_dir = script_path.parent.parent.absolute() / "data"
-    val_dir = script_path.parent.parent.absolute() / "data" 
+    df_train = load_preprocessed_data_parquet(data_dir / "prepared" / f"{year}.parquet")
+    df_val = load_preprocessed_data_parquet(data_dir / "prepared" / f"{year_val}.parquet", batch=batch_val)
+
+    # prepare data
+    X_train, feature_transform = create_X(df_train)
+    y_train, target_transform = create_y(df_train)
+
+    X_val, _ = create_X(df_val, feature_transform=feature_transform)
+    y_val, _ = create_y(df_val, target_transform=target_transform)
+
+    # hyperparameter tuning
+    hyperparam_tuning(X_train, y_train, X_val, y_val, feature_transform, target_transform)
+
+
+# def run_save_training_best_3(year, year_val, batch_val):
     
-    download_all_needed_files(year, data_dir)
-    download_all_needed_files(year_val, val_dir)
+#     # load data
+#     script_path = Path(os.path.realpath(__file__))
+#     data_dir = script_path.parent.parent.absolute() / "data"
+#     df_train = load_preprocessed_data_parquet(data_dir / "prepared" / f"{year}.parquet")
+#     df_val = load_preprocessed_data_parquet(data_dir / "prepared" / f"{year_val}.parquet", batch=batch_val)
 
+#     # prepare data
+#     X_train, feature_transform = create_X(df_train)
+#     y_train, target_transform = create_y(df_train)
 
-    data_df = load_data(year, data_dir / str(year))
-    val_df = load_data(year_val, val_dir / str(year_val), batch=batch_val)
-    
-    # calculate target variable phenoage
-    data_df = calculate_phenoage_df(data_df)
-    val_df = calculate_phenoage_df(val_df)
+#     X_val, _ = create_X(df_val, feature_transform=feature_transform)
+#     y_val, _ = create_y(df_val, target_transform=target_transform)
 
-    # prepare features and target
-    feature_names = get_feature_names()
-    target_name = get_target_name()  
-    raw_feature_df = prepare_raw_features(data_df[feature_names+[target_name]])  # target as, features get filtered in the process
-    feature_transformer = get_feature_transformer(raw_feature_df)
-    X_train = feature_transformer.transform(raw_feature_df)
-
-    val_raw_feature_df = prepare_raw_features(val_df[feature_names+[target_name]])  # target as, features get filtered in the process
-    X_val = feature_transformer.transform(val_raw_feature_df)
-
-
-    # prepare target
-    target_transformer = get_target_transformer(raw_feature_df)
-    y_train = target_transformer.transform(raw_feature_df[[target_name]]).ravel()
-    # target_transformer.inverse_transform(y_train.reshape((-1, 1))).min()
-
-    y_val = target_transformer.transform(val_raw_feature_df[[target_name]]).ravel()
-
-
-    hyperparam_tuning(X_train, y_train, X_val, y_val, feature_transformer, target_transformer)
-
-    # mlflow.set_experiment("best-n-SVR-models")
-    # train_model(X_train, y_train, X_val, y_val, feature_transformer, target_transformer)
-    # run_id = train_model(preprocessed_features_arr, y_train, feature_transformer, target_transformer)
-    # print(f"MLflow run_id: {run_id}")
-    # return run_id
+#     mlflow.set_experiment("best-n-SVR-models")
+#     train_model(X_train, y_train, X_val, y_val, feature_transform, target_transform)
+#     run_id = train_model(preprocessed_features_arr, y_train, feature_transform, target_transform)
+#     print(f"MLflow run_id: {run_id}")
+#     return run_id
 
 
 if __name__ == "__main__":
@@ -210,7 +176,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Model for biological age prediction.")
     parser.add_argument("year", type=int, choices=[2015, 2017], help="Year of training data")
     parser.add_argument("year_val", type=int, choices=[2015, 2017], help="Year of validation data")
-    parser.add_argument("batch_val", type=int, metavar="[0-9]", choices=range(10), help="Year of validation data")
+    parser.add_argument("batch_val", type=int, metavar="[0-4]", choices=range(5), help="Year of validation data")
     args = parser.parse_args()
 
-    run(args.year, args.year_val, args.batch_val)
+    run_hyperparameter_tuning(args.year, args.year_val, args.batch_val)

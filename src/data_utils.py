@@ -144,23 +144,17 @@ def download_all_needed_files(year, data_dir):
         print(file_url, os.path.join(data_path, get_nhanes_filename(year, file_prefix)))
 
 
-def load_data(year, data_dir, batch: int | None = None):
+def load_data(year, data_dir):
     # try to merge based on SEQN/patient
     unique_file_prefixes = np.unique(list((biomarker2fileprefix | feature2fileprefix).values()))
     files_to_read = [ os.path.join(data_dir, get_nhanes_filename(year, file_prefix)) for file_prefix in unique_file_prefixes ]
-    # print(files_to_read)
     raw_dfs = [ pd.read_sas(f) for f in files_to_read ]
+
     result_df = raw_dfs[0]
     for raw_df in raw_dfs[1:]:
         result_df = result_df.merge(raw_df, on="SEQN")
-    result_df = result_df.filter((biomarker2fileprefix|feature2fileprefix).keys()).copy()
-    if batch is not None:
-        if batch not in list(range(10)):
-            raise ValueError("batch can only be None or an int in [0-9]")
-        num_entries = len(result_df) // 10
-        start  = batch * num_entries
-        end = (batch+1) * num_entries - 1
-        result_df = result_df.iloc[start:end, :]  # split data by 10
+    # result_df = result_df.filter((biomarker2fileprefix|feature2fileprefix).keys()).copy()
+
     return result_df
 
 
@@ -254,3 +248,75 @@ def get_feature_names():
 
 def get_target_name():
     return "phenoage"
+
+
+def preprocess_raw_data_nhanes(df: pd.DataFrame):
+    """
+    prepare a dataframe with the defined features
+    # TODO one-hot categorical features will be transformed to strings for the scikit-learn.DictVectorizer
+
+    Args:
+        df (pd.DataFrame): dataframe with the raw features from NHANES data
+    """
+    df = df.copy() 
+    df = df.replace({np.inf: np.nan, -np.inf: np.nan})
+    # df = df.dropna(axis=0)
+
+    # ===== categorical =====
+    categorical_one_hot = ["RIAGENDR", "SMQ020"]
+
+    df["RIAGENDR"] = df["RIAGENDR"].astype("Int32")
+    df["RIAGENDR"] = df["RIAGENDR"].map({1: "male", 2: "female"})
+
+    df["SMQ020"] = df["SMQ020"].astype("Int32")
+    df["SMQ020"] = df["SMQ020"].map(lambda x: {1: "yes", 2: "no"}.get(x, np.nan))  # unknown values become NaN
+
+    # df[categorical_one_hot] = df[categorical_one_hot].astype(str)  # out-commented as this makes nan value to string
+
+    # ===== continuous =====
+    # Minutes sedentary activity | only use valid range of 0 to 1320
+    # df = df[(df.PAD680 >= 0) & (df.PAD680 <= 1320)]
+    df["PAD680"] = df["PAD680"].map(lambda x: x if x >= 0 and x <= 1320 else np.nan)
+
+    # # frequency of alcohol consumption during last 12 months: transform categorical to continuous variable 
+    # df["ALQ121"] = df["ALQ121"].astype("Int32")    
+    # alcohol_consumption_categorical_to_continuous = {
+    #     0: 0.,
+    #     1: 365.,  # every day
+    #     2: 52.*5,  # almost every day: assume 5 days a week
+    #     3: 52.*3.5,  # 3-4 times a week (52 weeks)
+    #     4: 52.*2,  # 2 times a week
+    #     5: 52.*1,  # once a week
+    #     6: 12.*2.5,  # 2-3 times a month
+    #     7: 12.*1,  # once a month
+    #     8: 9.,  # 9 times a year
+    #     9: 4.5,
+    #     10: 1.5,
+    #     77: np.nan,  # refused
+    #     99: np.nan,  # missing
+    # }
+    # df = df[((df["ALQ121"] >= 0) & (df["ALQ121"] <= 10)) | (df["ALQ121"] == 77) | (df["ALQ121"] == 99)]
+    # df["ALQ121"] = df["ALQ121"].replace(alcohol_consumption_categorical_to_continuous)
+
+    df["ALQ130"] = df["ALQ130"].round().astype("Int32")
+    df.loc[~df["ALQ130"].between(0, 15, inclusive="both")] = np.nan  # values 777 and 999 are "missing" and "refused"
+
+    df["PAD680"] = df["PAD680"].round()
+
+    df = df.copy().reset_index(drop=True)
+    return df
+
+
+def load_preprocessed_data_parquet(filepath, batch: int|None = None, num_batches=5):
+    read_df = pd.read_parquet(filepath)
+    read_df = read_df.map(lambda x: np.nan if x is None else x).astype({"ALQ130": "Int32"})
+    read_df = read_df.dropna(axis=0)  # drop rows containing missing values
+    if batch is not None:
+
+        if batch not in range(num_batches):
+            raise ValueError("batch must be None or in range(num_batches)")
+        batch_size = len(read_df) // num_batches
+        start = batch * batch_size
+        end = (batch+1) * batch_size if batch < num_batches-1 else len(read_df)
+
+    return read_df

@@ -7,8 +7,7 @@ import numpy as np
 import pandas as pd 
 from pandas.testing import assert_frame_equal
 
-from data_utils import calculate_phenoage_df, download_all_needed_files, get_feature_names, get_target_name, load_data
-from train import prepare_raw_features
+from data_utils import calculate_phenoage_df, download_all_needed_files, get_feature_names, get_target_name, load_data, load_preprocessed_data_parquet, preprocess_raw_data_nhanes
 
 
 def main():
@@ -29,9 +28,8 @@ def main():
 
         # prepare features and target
         print("3) cleaning features and target")
-        feature_names = get_feature_names()
-        target_name = get_target_name()  
-        raw_feature_df = prepare_raw_features(data_df[feature_names+[target_name]])  # target as, features get filtered in the process
+        columns = ["SEQN"] + get_feature_names() + [get_target_name()]
+        raw_feature_df = preprocess_raw_data_nhanes(data_df[columns])
         raw_feature_df = raw_feature_df.reset_index(drop=True)
 
         # saving 
@@ -40,13 +38,13 @@ def main():
         # raw_feature_df.to_csv(data_dir / "prepared" / str(year), index=False, na_rep="NA")
         # read_df = pd.read_csv(data_dir / "prepared" / str(year), dtype={"ALQ130": "Int32"})
 
-        raw_feature_df.to_parquet(data_dir / "prepared" / (str(year)+".parquet"), index=False)
-        read_df = pd.read_parquet(data_dir / "prepared" / (str(year)+".parquet"))
-        read_df = read_df.map(lambda x: np.nan if x is None else x).astype({"ALQ130": "Int32"})
+        outfile_path = data_dir / "prepared" / f"{year}.parquet"
+        raw_feature_df.to_parquet(outfile_path, index=False)
+        read_df = load_preprocessed_data_parquet(outfile_path)
         
         # print("equal?", raw_feature_df.equals(read_df))
         assert_frame_equal(raw_feature_df, read_df)
-        print()
+        print("-----")
 
 if __name__ == "__main__":
     main()
