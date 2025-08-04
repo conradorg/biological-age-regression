@@ -62,25 +62,36 @@ The National Health and Nutrition Examination Survey (NHANES) collects health da
 
 
 ## Usage
-Hint: everything is executed locally at the moment
+Hint: everything is executed locally at the moment.
+- The project uses docker compose to boot up the developement environment with mlflow (experiments) and airflow (orchestration)
+    - MLflow UI: http://localhost:5000
+    - Airflow UI: http://localhost:8080
+- **What is Airflow?** Apache Airflow is a tool for automating and scheduling workflows. In this project, it is used to define and run data and training pipelines as code (called DAGs - Directed Acyclic Graphs).
+    - The (very simple) DAGs (workflows) are defined in the `airflow-dags/` folder.
+    - Open the Airflow UI and trigger the DAGs manually as needed.
+- Additional services in the docker compose file:
+    - minio: used to provide an s3 bucket
+    - createbucket: minio client which is used to create the s3 bucket
+    - postgres_airflow: database for apache airflow orchestrator
 
+Please copy the environment file examples `.env-docker.example` and `.env-local.example` to create  `.env-docker` and `.env-local`. And change the the environment variables if needed. You can start the docker containers with the following command:
+```bash
+sudo docker compose --env-file .env-docker up --build
+```
+please wait 20 seconds, then you can open mlflow and airflow to execute data loading, hyperparameter tuning und training tasks. Sometimes airflow workflows and tasks are not properly logged if the UI is used too early (you can have the web interface open but wait before you reload.) Sometimes the tasks always fail, in this case please restart docker compose again. (Ctrl + C and execute the command again)
 
-Please copy .env-docker.example -> .env-docker and .env-local.example -> .env-local
-```
-sudo docker compose --env-file .env-docker up
-```
-please wait a few seconds, then you can open mlflow and airflow to execute data loading, hyperparameter tuning und training tasks
+When the UI is ready, you can on the left-hand side click on the DAG (workflow) section and click then on the "play/triangle" button. Then, a dialog window opens "Trigger DAG - dag_hyperparam_tuning_train_best" and you can just click on trigger. Afterwards, you can click on the latest run. The individual task runs are shown and you can inspect them and the logs.
 
-you can also execute the code locally outside the docker container
-```
-pipenv run python src/prepare_data.py
-pipenv run python src/train.py 2015 2017 0 
-pipenv run python src/train.py --hyperparam_tune False 2015 2017 0 
+You can also execute the code locally outside the docker container
+```bash
+pipenv run python src/prepare_data.py  # fetches the data, applies preprocessing and saves it to parquet format
+pipenv run python src/train.py 2015 2017 0  # hyperparameter tuning (train year 2015, val year 2017, val batch 0)
+pipenv run python src/train.py --hyperparam_tune False 2015 2017 0  # training the best three models from hyperparameter tuning
 ```
 
 
 
 Useful commands:
-```
-sudo docker compose exec -it airflow bash
+```bash
+sudo docker compose exec -it airflow bash  # enter a docker compose container (here: airflow container)
 ```
