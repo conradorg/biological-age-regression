@@ -16,17 +16,17 @@ biomarker2fileprefix = {
     "RIDAGEYR": "DEMO",  # Years
 }
 biomarker2description = {
-    "LBDSALSI":         "Albumin, refrigerated serum(g/L)",
-    "LBDSCRSI":         "Creatinine, refrigerated serum (umol/L)",
-    "LBDSGLSI":         "Glucose, refrigerated serum (mmol/L)",  # mmol/L
-    "LBXHSCRP":         "High-Sensitivity C-Reactive Protein (hs-CRP) (mg/L)",  # TODO: mg/L -> log(mg/dL) (for phenoage calculation)
-    "LBXLYPCT":         "Lymphocyte percent (%)",  # %
-    "LBXMCVSI":         "Mean cell volume (fL)",  # fL
-    "LBXRDW":           "Red cell distribution width (%)",  # %
-    "LBXSAPSI":         "Alkaline Phosphatase (ALP) (IU/L)",  # IU/L == U/L
-    "LBXWBCSI":         "White blood cell count (1000 cells/uL)",  # 1000 cells/uL
-    "RIDAGEYR":         "Age in years of the participant at the time of screening. Individuals 80 and over are topcoded at 80 years of age.",  # Years
-    "LBXHSCRP_mg_dL":   "[self-calculated] High-Sensitivity C-Reactive Protein (hs-CRP) (mg/L)"   # mg/dL
+    "LBDSALSI": "Albumin, refrigerated serum(g/L)",
+    "LBDSCRSI": "Creatinine, refrigerated serum (umol/L)",
+    "LBDSGLSI": "Glucose, refrigerated serum (mmol/L)",  # mmol/L
+    "LBXHSCRP": "High-Sensitivity C-Reactive Protein (hs-CRP) (mg/L)",  # TODO: mg/L -> log(mg/dL) (for phenoage calculation)
+    "LBXLYPCT": "Lymphocyte percent (%)",  # %
+    "LBXMCVSI": "Mean cell volume (fL)",  # fL
+    "LBXRDW": "Red cell distribution width (%)",  # %
+    "LBXSAPSI": "Alkaline Phosphatase (ALP) (IU/L)",  # IU/L == U/L
+    "LBXWBCSI": "White blood cell count (1000 cells/uL)",  # 1000 cells/uL
+    "RIDAGEYR": "Age in years of the participant at the time of screening. Individuals 80 and over are topcoded at 80 years of age.",  # Years
+    "LBXHSCRP_mg_dL": "[self-calculated] High-Sensitivity C-Reactive Protein (hs-CRP) (mg/L)",  # mg/dL
 }
 feature2description = {
     "RIDAGEYR": "Age in years of the participant at the time of screening. Individuals 80 and over are topcoded at 80 years of age.",
@@ -57,17 +57,17 @@ feature2fileprefix = {
 
 # Variable search: https://wwwn.cdc.gov/nchs/nhanes/search/default.aspx
 col2description = {
-    "LBDSALSI":         "Albumin, refrigerated serum(g/L)",
-    "LBDSCRSI":         "Creatinine, refrigerated serum (umol/L)",
-    "LBDSGLSI":         "Glucose, refrigerated serum (mmol/L)",  # mmol/L
-    "LBXHSCRP":         "High-Sensitivity C-Reactive Protein (hs-CRP) (mg/L)",  # TODO: mg/L -> log(mg/dL) (for phenoage calculation)
-    "LBXLYPCT":         "Lymphocyte percent (%)",  # %
-    "LBXMCVSI":         "Mean cell volume (fL)",  # fL
-    "LBXRDW":           "Red cell distribution width (%)",  # %
-    "LBXSAPSI":         "Alkaline Phosphatase (ALP) (IU/L)",  # IU/L == U/L
-    "LBXWBCSI":         "White blood cell count (1000 cells/uL)",  # 1000 cells/uL
-    "RIDAGEYR":         "Age in years of the participant at the time of screening. Individuals 80 and over are topcoded at 80 years of age.",  # Years
-    "LBXHSCRP_mg_dL":   "[self-calculated] High-Sensitivity C-Reactive Protein (hs-CRP) (mg/L)"   # mg/dL
+    "LBDSALSI": "Albumin, refrigerated serum(g/L)",
+    "LBDSCRSI": "Creatinine, refrigerated serum (umol/L)",
+    "LBDSGLSI": "Glucose, refrigerated serum (mmol/L)",  # mmol/L
+    "LBXHSCRP": "High-Sensitivity C-Reactive Protein (hs-CRP) (mg/L)",  # TODO: mg/L -> log(mg/dL) (for phenoage calculation)
+    "LBXLYPCT": "Lymphocyte percent (%)",  # %
+    "LBXMCVSI": "Mean cell volume (fL)",  # fL
+    "LBXRDW": "Red cell distribution width (%)",  # %
+    "LBXSAPSI": "Alkaline Phosphatase (ALP) (IU/L)",  # IU/L == U/L
+    "LBXWBCSI": "White blood cell count (1000 cells/uL)",  # 1000 cells/uL
+    "RIDAGEYR": "Age in years of the participant at the time of screening. Individuals 80 and over are topcoded at 80 years of age.",  # Years
+    "LBXHSCRP_mg_dL": "[self-calculated] High-Sensitivity C-Reactive Protein (hs-CRP) (mg/L)",  # mg/dL
 }
 feature_names = [
     # "LBDSALSI",
@@ -80,7 +80,6 @@ feature_names = [
     # "LBXSAPSI",
     # "LBXWBCSI",
     # "RIDAGEYR",
-    
     "RIDAGEYR",
     "RIAGENDR",
     "BMXHT",
@@ -95,16 +94,13 @@ feature_names = [
 ]
 
 
-
-
-
-
 def download_file(url, filename):
     response = requests.get(url)
     if not response.ok:
         raise ValueError(f"Requested file not available at url {url}")
     with open(filename, mode="wb") as file:
         file.write(response.content)
+
 
 def get_nhanes_suffix(year):
     """get NHANES suffix for a specific start year"""
@@ -120,15 +116,19 @@ def get_nhanes_suffix(year):
         2015: "I",
         2017: "J",
         2019: "K",
-        2021: "L"
+        2021: "L",
     }
     if year in suffixes:
         return suffixes[year]
     else:
         raise ValueError(f"no NHANES suffix known for year {year}")
 
+
 def get_nhanes_url(year, file_prefix):
-    return f"https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/{str(year)}/DataFiles/{get_nhanes_filename(year, file_prefix)}"
+    return (
+        f"https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/{str(year)}/DataFiles/{get_nhanes_filename(year, file_prefix)}"
+    )
+
 
 def get_nhanes_filename(year, file_prefix):
     return f"{file_prefix}_{get_nhanes_suffix(year)}.xpt"
@@ -147,8 +147,10 @@ def download_all_needed_files(year, data_dir):
 def load_data(year, data_dir):
     # try to merge based on SEQN/patient
     unique_file_prefixes = np.unique(list((biomarker2fileprefix | feature2fileprefix).values()))
-    files_to_read = [ os.path.join(data_dir, get_nhanes_filename(year, file_prefix)) for file_prefix in unique_file_prefixes ]
-    raw_dfs = [ pd.read_sas(f) for f in files_to_read ]
+    files_to_read = [
+        os.path.join(data_dir, get_nhanes_filename(year, file_prefix)) for file_prefix in unique_file_prefixes
+    ]
+    raw_dfs = [pd.read_sas(f) for f in files_to_read]
 
     result_df = raw_dfs[0]
     for raw_df in raw_dfs[1:]:
@@ -158,8 +160,7 @@ def load_data(year, data_dir):
     return result_df
 
 
-
-def log_robust(x: np.ndarray, epsilon: float=1e-6):
+def log_robust(x: np.ndarray, epsilon: float = 1e-6):
     """
     robust natural logarithm to prevent numerical instability at log(0) which is not defined (negative infinity)
     it replaces values x smaller than epsilon with epsilon. epsilon is a small constant.
@@ -228,7 +229,7 @@ def calculate_phenoage_numpy(
 
 def calculate_phenoage_df(df):
     df = df.copy()
-    df["LBXHSCRP_mg_dL"] = df["LBXHSCRP"]*10
+    df["LBXHSCRP_mg_dL"] = df["LBXHSCRP"] * 10
     df.loc[:, ["phenoage"]] = calculate_phenoage_numpy(
         albumin=df["LBDSALSI"].to_numpy(),
         creatinine=df["LBDSCRSI"].to_numpy(),
@@ -243,8 +244,10 @@ def calculate_phenoage_df(df):
     )
     return df
 
+
 def get_feature_names():
     return feature_names
+
 
 def get_target_name():
     return "phenoage"
@@ -253,12 +256,11 @@ def get_target_name():
 def preprocess_raw_data_nhanes(df: pd.DataFrame):
     """
     prepare a dataframe with the defined features
-    # TODO one-hot categorical features will be transformed to strings for the scikit-learn.DictVectorizer
 
     Args:
         df (pd.DataFrame): dataframe with the raw features from NHANES data
     """
-    df = df.copy() 
+    df = df.copy()
     df = df.replace({np.inf: np.nan, -np.inf: np.nan})
     # df = df.dropna(axis=0)
 
@@ -278,8 +280,8 @@ def preprocess_raw_data_nhanes(df: pd.DataFrame):
     # df = df[(df.PAD680 >= 0) & (df.PAD680 <= 1320)]
     df["PAD680"] = df["PAD680"].map(lambda x: x if x >= 0 and x <= 1320 else np.nan)
 
-    # # frequency of alcohol consumption during last 12 months: transform categorical to continuous variable 
-    # df["ALQ121"] = df["ALQ121"].astype("Int32")    
+    # # frequency of alcohol consumption during last 12 months: transform categorical to continuous variable
+    # df["ALQ121"] = df["ALQ121"].astype("Int32")
     # alcohol_consumption_categorical_to_continuous = {
     #     0: 0.,
     #     1: 365.,  # every day
@@ -307,16 +309,17 @@ def preprocess_raw_data_nhanes(df: pd.DataFrame):
     return df
 
 
-def load_preprocessed_data_parquet(filepath, batch: int|None = None, num_batches=5):
+def load_preprocessed_data_parquet(filepath, batch: int | None = None, num_batches=5, dropna=True):
     read_df = pd.read_parquet(filepath)
     read_df = read_df.map(lambda x: np.nan if x is None else x).astype({"ALQ130": "Int32"})
-    read_df = read_df.dropna(axis=0)  # drop rows containing missing values
+    if dropna:
+        read_df = read_df.dropna(axis=0)  # drop rows containing missing values
     if batch is not None:
 
         if batch not in range(num_batches):
             raise ValueError("batch must be None or in range(num_batches)")
         batch_size = len(read_df) // num_batches
         start = batch * batch_size
-        end = (batch+1) * batch_size if batch < num_batches-1 else len(read_df)
+        end = (batch + 1) * batch_size if batch < num_batches - 1 else len(read_df)
 
     return read_df
