@@ -1,5 +1,39 @@
 services:
+
+    minio:
+        networks:
+            - net
+        image: minio/minio:RELEASE.2025-07-18T21-56-31Z
+        command: server /data --console-address ":9001"
+        environment:
+            MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+            MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+        ports:
+            - "9000:9000"
+            - "9001:9001"
+        volumes:
+            - ./minio_data:/data
+
+    createbucket:
+        networks:
+            - net
+        image: minio/mc
+        depends_on:
+            - minio
+        entrypoint: >
+            /bin/sh -c "
+                sleep 5 &&
+                mc alias set local ${MLFLOW_S3_ENDPOINT_URL} ${AWS_ACCESS_KEY_ID} ${AWS_SECRET_ACCESS_KEY} &&
+                mc mb -p local/mlflow || true &&
+                mc anonymous set public local/mlflow
+            "
+
     mlflow:
+        networks:
+            - net
+        depends_on:
+            - minio
+            - createbucket
         build:
             context: .
             dockerfile: Dockerfile.mlflow
@@ -7,8 +41,23 @@ services:
             - "5000:5000"
         volumes:
             - "${PWD}/mlflow_data:/home/mlflow_data/"
+        environment:
+            MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
+            AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+            AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+        command: >
+            bash -c "mlflow server
+            --backend-store-uri sqlite:///home/mlflow_data/mlflow.db
+            --default-artifact-root s3://mlflow
+            --host 0.0.0.0
+            --port 5000
+            "
+        # --default-artifact-root file:///home/mlflow_data/mlflow_artifacts/
+
 
     airflow:
+        networks:
+            - net
         build: 
             context: .
             dockerfile: Dockerfile.airflow
@@ -16,14 +65,32 @@ services:
             - "8080:8080"
         environment:
             - AIRFLOW_HOME=/app/airflow  # holds airflow.cfg and password for admin
-            - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
+            - AIRFLOW__CORE__EXECUTOR=LocalExecutor
             - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres_airflow/airflow
+            - AIRFLOW__CORE__LOAD_EXAMPLES=False
+            - AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS=True
+            - MLFLOW_TRACKING_URI=http://mlflow:5000  # docker-compose internal tracking URI
+            - MLFLOW_S3_ENDPOINT_URL=${MLFLOW_S3_ENDPOINT_URL}
+            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
         depends_on:
             - postgres_airflow
-        # command: bash -c "sleep 5 && airflow db migrate && airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com && airflow webserver"
-        command: bash -c "sleep 5 && airflow db migrate && airflow api-server"
+            - minio
+        command: >
+            bash -c "
+                sleep 5 &&
+                airflow db migrate &&
+                airflow api-server &
+                airflow scheduler &
+                airflow dag-processor &
+                wait
+            "
+        volumes:
+            - "${PWD}/data:/data"
 
     postgres_airflow:
+        networks:
+            - net
         image: postgres:15
         restart: always
         environment:
@@ -32,3 +99,7 @@ services:
             POSTGRES_DB: airflow
         volumes:
             - "${PWD}/postgres_data:/var/lib/postgresql/data"
+
+
+networks:
+    net:
