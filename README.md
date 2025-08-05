@@ -84,6 +84,7 @@ When the UI is ready, you can on the left-hand side click on the DAG (workflow) 
 
 You can also execute the code locally outside the docker container
 ```bash
+source .env-local
 pipenv run python src/prepare_data.py  # fetches the data, applies preprocessing and saves it to parquet format
 pipenv run python src/train.py 2015 2017 0  # hyperparameter tuning (train year 2015, val year 2017, val batch 0)
 pipenv run python src/train.py --hyperparam_tune False 2015 2017 0  # training the best three models from hyperparameter tuning
