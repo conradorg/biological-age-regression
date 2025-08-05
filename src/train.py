@@ -118,8 +118,8 @@ def train_model(X_train, y_train, X_val, y_val, feature_transform, target_transf
         )
 
         mlflow.sklearn.log_model(model, name="model")
-        mlflow.sklearn.log_model(model, name="feature_transform")
-        mlflow.sklearn.log_model(model, name="target_transform")
+        mlflow.sklearn.log_model(feature_transform, name="feature_transform")
+        mlflow.sklearn.log_model(target_transform, name="target_transform")
 
     return run_id, model
 
