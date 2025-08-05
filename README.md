@@ -12,9 +12,9 @@ By replacing complex lab tests with accessible input data, the project shows how
 ## Hint
 At the moment the project implements
 - ML training with a Support Vector Regression model using sklearn
-- Experiment tracking: MLFlow (no model registry at the moment)
+- Experiment tracking: MLFlow 
 - Workflow orchestration: using Apache Airflow
-- Model deployment: basic webservice deployment
+- Model deployment: basic local webservice deployment
 - model monitoring: basic validation at the moment after training
 - black: code formatter is used
 - pre-commit hooks are used
@@ -90,7 +90,7 @@ pipenv run python src/train.py --hyperparam_tune False 2015 2017 0  # training t
 ```
 
 ## Webservice Deployment
-In three different terminals execute:
+The webservice deployment is done locally at the moment. To execute it, execute the following lines in three different terminals:
 ```bash
 sudo docker compose --env-file .env-docker up --build
 ```
