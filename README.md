@@ -14,7 +14,7 @@ At the moment the project implements
 - ML training with a Support Vector Regression model using sklearn
 - Experiment tracking: MLFlow (no model registry at the moment)
 - Workflow orchestration: using Apache Airflow
-- Model deployment: not deployed at the moment
+- Model deployment: basic webservice deployment
 - model monitoring: basic validation at the moment after training
 - black: code formatter is used
 - pre-commit hooks are used
@@ -89,7 +89,17 @@ pipenv run python src/train.py 2015 2017 0  # hyperparameter tuning (train year 
 pipenv run python src/train.py --hyperparam_tune False 2015 2017 0  # training the best three models from hyperparameter tuning
 ```
 
-
+## Webservice Deployment
+In three different terminals execute:
+```bash
+sudo docker compose --env-file .env-docker up --build
+```
+```bash
+pipenv run python webservice/predict.py
+```
+```bash
+pipenv run python webservice/test.py
+```
 
 Useful commands:
 ```bash
